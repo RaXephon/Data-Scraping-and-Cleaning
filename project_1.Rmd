@@ -1,0 +1,256 @@
+---
+title: "Project_1"
+author: "Shashwat Kapoor"
+date: "3/15/2019"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+library(magrittr)
+library(rvest)
+library(dplyr)
+library(tidyr)
+library(readr)
+library(stringr)
+library(ggplot2)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Part 1
+
+### Step 1: 
+
+```{r, eval=TRUE}
+url_sf <- "https://www.spaceweatherlive.com/en/solar-activity/top-50-solar-flares"
+
+solar_flares <- url_sf %>%
+  read_html() %>%
+  html_node("table.table.table-striped.table-responsive-md") %>%
+  html_table() %>%
+  set_colnames(c("rank", "flare_classification", "date", "flare_region", 
+                 "start_time",  "maximum_time", "end_time", "movie")) %>%
+  as_tibble()
+
+solar_flares
+```
+
+I get the html from the website and look for the class id "table table-striped table-responsive-md". Then, I extract the table from it using html_table(), add column names and convert it to a tibble.
+
+
+### Step 2:
+
+```{r, eval=TRUE}
+solar_flares <- solar_flares %>%
+  mutate(date_cp1 = date) %>%
+  mutate(date_cp2 = date) %>%
+  select(-c("movie")) %>%
+  unite("start_datetime", date, start_time, sep = " ") %>%
+  unite("max_datetime", date_cp1, maximum_time, sep = " ") %>%
+  unite("end_datetime", date_cp2, end_time, sep = " ") %>%
+  type_convert(col_types = cols(start_datetime = col_datetime(format = "%Y/%m/%d %H:%M"), 
+                                max_datetime = col_datetime(format = "%Y/%m/%d %H:%M"),
+                                end_datetime = col_datetime(format = "%Y/%m/%d %H:%M")))
+
+solar_flares
+```
+I create 2 copies of the date column, remove the movie column, combine the date-start_time, date-max_time and date-end_time, and format the 3 resulting columns as datetime type.
+
+
+### Step 3:
+
+```{r, eval=TRUE}
+url_nasa <- "http://www.hcbravo.org/IntroDataSci/misc/waves_type2.html"
+
+nasa_data <- url_nasa %>%
+  read_html() %>%
+  html_nodes("pre") %>%
+  html_text() %>%
+  str_split("\n") %>%
+  purrr::as_vector() %>%
+  str_subset("[0-9]{4}/[0-9]{2}/[0-9]{2}") %>%
+  as_tibble() %>%
+  separate(value, extra = "drop", c("start_date", "start_time", "end_date",
+                                  "end_time", "start_frequency", "end_frequency",
+                                  "flare_location", "flare_region", "flare_classification",
+                                  "cme_date", "cme_time", "cme_angle", "cme_width", 
+                                  "cme_speed"), sep="[ ]{1,}")
+
+nasa_data
+```
+I get the html from the website and look for the id "pre" to get the html text underneath it. I split the resulting string and convert it to a vector so that I can use subset on it. After using str_subset on the vector, I convert it to a tibble and separate it into 14 columns.
+
+
+### Step 4:
+
+```{r, eval=TRUE}
+nasa_data <- nasa_data %>%
+  mutate(start_frequency = ifelse(start_frequency == "????", NA_character_, start_frequency),
+         end_frequency = ifelse(end_frequency == "????", NA_character_, end_frequency),
+         flare_location = ifelse(flare_location == "------", NA_character_, flare_location),
+         flare_region = ifelse(flare_region == "-----", NA_character_, flare_region),
+         flare_classification = ifelse(flare_classification == "----", NA_character_, 
+                                       flare_classification),
+         cme_date = ifelse(cme_date == "--/--", NA_character_, cme_date),
+         cme_time = ifelse(cme_time == "--:--", NA_character_, cme_time),
+         cme_angle = ifelse(cme_angle == "----", NA_character_, cme_angle),
+         cme_width = ifelse(cme_width == "---", NA_character_, cme_width),
+         cme_width = ifelse(cme_width == "----", NA_character_, cme_width),
+         cme_speed = ifelse(cme_speed == "----", NA_character_, cme_speed)) %>%
+  mutate(halo = ifelse(cme_angle == "Halo", TRUE, FALSE),
+         cme_angle = ifelse(cme_angle == "Halo", NA_character_, cme_angle)) %>%
+  mutate(cme_width = ifelse(cme_width == "360h", 360, cme_width),
+         width_limit = ifelse(grepl(">", cme_width), TRUE, FALSE)) %>%
+  mutate(end_time = ifelse(end_time == "24:00", "23:59", end_time)) %>%
+  mutate(end_date = paste(substring(start_date, 1,5), end_date, sep = "")) %>%
+  mutate(cme_date = paste(substring(start_date, 1,5), cme_date, sep = "")) %>%
+  unite("start_datetime", start_date, start_time, sep = " ") %>%
+  unite("end_datetime", end_date, end_time, sep = " ") %>%
+  unite("cme_datetime", cme_date, cme_time, sep = " ") %>%
+  type_convert(col_types = cols(start_datetime = col_datetime(format = "%Y/%m/%d %H:%M"), 
+                                max_datetime = col_datetime(format = "%Y/%m/%d %H:%M"),
+                                end_datetime = col_datetime(format = "%Y/%m/%d %H:%M"))) %>%
+  mutate(start_frequency = as.integer(start_frequency)) %>%
+  mutate(end_frequency = as.integer(end_frequency)) %>%
+  mutate(cme_datetime = ifelse(grepl("NA", cme_datetime), NA_character_, cme_datetime))
+
+nasa_data
+```
+I use mutate to replace the missing entries with NA, create a new column "halo" whether a flare has a halo, to change "360h" to "360" in cme_width (according to a piazza post) and to change the end_time of 24:00 to 23:59 (according to piazza post). I also combine the date-start_time, date-max_time and date-end_time, and format the 3 resulting columns as datetime type. I then convert start_frequency and end_frequency to integer columns.
+
+
+
+## Part 2
+
+### Question 1:
+
+```{r eval=TRUE, message=FALSE, warning=FALSE}
+nasa_data <- nasa_data %>%
+  separate(flare_classification, c("flare_class", "flare_degree"), sep = 1, 
+           extra = "drop", remove = FALSE) %>%
+  type_convert(col_types = cols(flare_degree = col_double(),
+                                flare_region = col_integer()))
+
+top50_unselected <- nasa_data %>%
+  arrange(desc(flare_class), desc(flare_degree)) %>%
+  slice(1:50) %>%
+  tibble::rowid_to_column() %>%
+  mutate(rank = rowid) %>%
+  mutate(flare_classification = gsub("\\.$", ".0", flare_classification)) %>%
+  separate(start_datetime, c("date", "start_time"), sep = " ", remove = FALSE) %>%
+  separate(cme_datetime, c("date1", "maximum_time"), sep = " ", remove = FALSE) %>%
+  separate(end_datetime, c("date2", "end_time"), sep = " ", remove = FALSE)
+
+top50_tbl <- top50_unselected %>%
+  select(c("rank", "flare_classification", "date", "flare_region", 
+           "start_time", "maximum_time", "end_time"))
+
+top50_tbl
+```
+No, I cannot replicate the top 50 solar flare table in SpaceWeatherLive.com exactly as they have more flare datapoints than in the NASA dataset.
+My code replicates it as closely as possible and even orders it in the same manner as the SpaceWeatherLive.com data table. The only limitation is the data itself that was provided to me. Also, they SpaceWeatherLive.com use maximum_time but since the NASA dataset didn't have maximum_time, I used the cme_time to approximate the maximum_time.
+
+
+### Question 2:
+
+#### Section 1
+
+```{r, eval=TRUE}
+char_similarity <- function(v1, v2) {
+  if (is.na(v1) || is.na(v2)) {
+    return(0)
+  }
+  else { 
+    ifelse(v1 == v2, 1, 0) 
+  }
+}
+
+num_similarity <- function(v1, v2) {
+  if (is.na(v1) || is.na(v2)) {
+    return(0)
+  }
+  else {
+    exp(-1*((v1 - v2)^2))
+  }
+}
+
+date_similarity <- function(v1, v2) {
+  if (is.na(v1) || is.na(v2)) {
+    return(0)
+  }
+  else {
+    exp(-1*(((as.numeric(v1) - as.numeric(v2))/3600)^2))
+  }
+}
+
+solar_flares_unselected <- solar_flares %>%
+  separate(flare_classification, c("flare_class", "flare_degree"), sep = 1, 
+           extra = "drop") %>%
+  type_convert(col_types = cols(flare_degree = col_double()))
+
+flare_similarity <- function(df1, df2) {
+  score <- num_similarity(df1$flare_degree, df2$flare_degree) +
+    date_similarity(df1$start_datetime, df2$start_datetime) +
+    date_similarity(df1$end_datetime, df2$end_datetime) +
+    num_similarity(df1$flare_region, df2$flare_region) +
+    char_similarity(df1$flare_class, df2$flare_class)
+  
+  score
+}
+
+flare_similarity(solar_flares_unselected, top50_unselected)
+```
+I define my similarity function using 2 aux functions: char_similarity, num_similarity and date_similarity.
+They all calculate their respective similarities. I use these functions to calculate the similarities of flare_degree, start_datetime, end_datetime, flare_region and flare_class, and then add them all up to get the final similarity score.
+
+
+#### Section 2
+
+```{r, eval=TRUE}
+flare_match <- function(df1, df2) {
+  matches <- c(0)
+  
+  for (i in seq(1, nrow(df1))) {
+    max <- 0
+    maxid <- 0
+    
+    for (j in seq(1, nrow(df2))) {
+      ele <- flare_similarity(df1[i,], df2[j,])
+      
+      if (ele > max) {
+        maxid <- j
+        max <- ele
+      }
+    }
+    
+    matches[i] <- ifelse(max > 2, maxid, NA_character_)
+  }
+  
+  as.integer(matches)
+}
+```
+For my flare_match function, I disregard any below or equal to 2 as I would like the flare_class to match up perfectly (amounting to a score of 1) and the flare_degree to match somewhat perfectly (amounting to a floor value of 1.8). I also want the datetimes to match up with a few hours of each other, so the bare minimum valid score should be above 2.
+
+
+#### Section 3
+
+```{r, eval=TRUE}
+top50_tbl <- top50_tbl %>%
+  mutate(best_match_index = flare_match(solar_flares_unselected, top50_unselected))
+```
+
+
+### Question 3:
+
+```{r eval=TRUE, message=FALSE, warning=FALSE}
+nasa_data <- nasa_data %>%
+  mutate(is_top50 = ifelse(is.na(flare_match(nasa_data, solar_flares_unselected)), FALSE, TRUE))
+
+ggplot(nasa_data, aes(x=start_datetime, y=flare_degree, colour = is_top50)) +
+  geom_point()
+```
+      Intention: Is there covariance between intensity (flare_degree) & coronal mass ejection (CME) speed in solar flares?
+
+It is clear that most solar flares tend to stay around an intensity of around 10 and the rest are in SpaceWeatherLive's top 50. The other place where top 50 solar flares are distinct from non-top-50 flares is on the higher end of coronal mass ejection speed.
+
+A positive correlation between flare intensity and CME speed is observed. While high coronal mass ejection speed does not necessarily imply high flare intensity, it does imply top 50 ranking.

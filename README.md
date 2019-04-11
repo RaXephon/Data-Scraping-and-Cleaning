@@ -17,7 +17,7 @@ This project does the following:
  
 ## Part 2: Analysis
  
-#### Is it possible to replicate the top 50 solar flare table in SpaceWeatherLive.com exactly using the data obtained from NASA? That is, if we get the top 50 solar flares from the NASA table based on their classification (e.g., X28 is the highest), can we get data for the same 50 solar flare events in the SpaceWeatherLive page? If not, why not?
+#### Is it possible to replicate the top 50 solar flare table in SpaceWeatherLive.com exactly using the data obtained from NASA? If not, why not?
  
 I cannot replicate the top 50 solar flare table in SpaceWeatherLive.com exactly as they have more flare datapoints than in the NASA dataset.
 My code replicates it as closely as possible and even orders it in the same manner as the SpaceWeatherLive.com data table. The only limitation is the data itself that was provided to me. Also, they SpaceWeatherLive.com use maximum_time but since the NASA dataset didn't have maximum_time, I used the cme_time to approximate the maximum_time.

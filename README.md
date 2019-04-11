@@ -15,7 +15,7 @@ This project does the following:
 * Step 3: I scraped the same data from NASA and converted it to a tibble.
 * Step 4: I added the same columns as above, and tidied the data.
  
-### Part 2: Analysis
+## Part 2: Analysis
  
 #### Is it possible to replicate the top 50 solar flare table in SpaceWeatherLive.com exactly using the data obtained from NASA? That is, if we get the top 50 solar flares from the NASA table based on their classification (e.g., X28 is the highest), can we get data for the same 50 solar flare events in the SpaceWeatherLive page? If not, why not?
  
